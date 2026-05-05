@@ -1,22 +1,49 @@
-# Portafolio
-Data Analytics Portfolio | Power BI · Python · SQL · Data Visualization
-
 # 📊 Portafolio de Análisis de Datos
-### Julian Cabello | Data Analyst
+### Julián Cabello | Data Analyst
 
-Bienvenido a mi portafolio. Aquí documento proyectos reales usando:
+Analista de datos autodidacta enfocado en transformar 
+datos en decisiones. Aquí documento mi aprendizaje y 
+proyectos reales.
 
-| Herramienta | Uso |
-|-------------|-----|
-| 🐍 Python | Análisis, limpieza y automatización de datos |
-| 🗄️ SQL | Consultas, modelado y gestión de bases de datos |
-| 📊 Power BI | Dashboards e informes interactivos |
+
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+
+
+
+
+![SQL](https://img.shields.io/badge/SQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+
+
+
+
+![Power BI](https://img.shields.io/badge/Power_BI-F2C811?style=for-the-badge&logo=powerbi&logoColor=black)
+
+
+
+
+![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)
+
+
 
 ---
 
 ## 📁 Proyectos
 
-> Próximamente — proyectos en construcción
+| # | Proyecto | Herramientas | Estado |
+|---|----------|-------------|--------|
+| 01 | [Análisis de Ventas — Northwind](./proyecto-01-ventas) | SQL · Python · Power BI | 🔄 En progreso |
+
+---
+
+## 🛠 Habilidades
+
+| Área | Herramientas |
+|------|-------------|
+| Lenguajes | Python · SQL |
+| Visualización | Power BI · Matplotlib |
+| Base de datos | SQLite · MySQL |
+| Control de versiones | Git · GitHub |
 
 ---
 
