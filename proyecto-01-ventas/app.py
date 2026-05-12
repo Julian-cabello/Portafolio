@@ -1,78 +1,413 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-# Configuración
+# ─── CONFIG ───────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Dashboard Northwind",
+    page_title="Northwind Analytics",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Cargar datos
+# ─── ESTILOS ──────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Fondo principal */
+.stApp {
+    background: #0a0f1e;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #0d1428;
+    border-right: 1px solid #1e2d4a;
+}
+
+[data-testid="stSidebar"] .stMarkdown h2 {
+    color: #4fc3f7;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    border-bottom: 1px solid #1e2d4a;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+}
+
+/* Multiselect tags */
+.stMultiSelect [data-baseweb="tag"] {
+    background: #1565c0 !important;
+    border-radius: 4px !important;
+}
+
+/* KPI Cards */
+.kpi-card {
+    background: linear-gradient(135deg, #0d1428 0%, #111d35 100%);
+    border: 1px solid #1e2d4a;
+    border-radius: 12px;
+    padding: 24px 28px;
+    position: relative;
+    overflow: hidden;
+}
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent, #4fc3f7);
+}
+.kpi-label {
+    color: #5c7a9e;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.kpi-value {
+    color: #e8f4fd;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.kpi-sub {
+    color: #4fc3f7;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+/* Section titles */
+.section-title {
+    color: #e8f4fd;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #1e2d4a, transparent);
+}
+
+/* Chart containers */
+.chart-container {
+    background: #0d1428;
+    border: 1px solid #1e2d4a;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+/* Header */
+.main-header {
+    padding: 8px 0 24px 0;
+    border-bottom: 1px solid #1e2d4a;
+    margin-bottom: 28px;
+}
+.main-title {
+    color: #e8f4fd;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.2;
+}
+.main-subtitle {
+    color: #5c7a9e;
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+.badge {
+    display: inline-block;
+    background: #0d2137;
+    border: 1px solid #1e4a6e;
+    color: #4fc3f7;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-right: 6px;
+}
+
+/* Divider */
+hr { border-color: #1e2d4a !important; }
+
+/* Hide streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+# ─── COLORES ──────────────────────────────────────────────────────────────────
+COLOR_PRIMARY   = "#4fc3f7"
+COLOR_SECONDARY = "#00e5ff"
+COLOR_ACCENT    = "#1565c0"
+COLOR_BG        = "#0d1428"
+COLOR_SURFACE   = "#111d35"
+COLOR_BORDER    = "#1e2d4a"
+COLOR_TEXT      = "#e8f4fd"
+COLOR_MUTED     = "#5c7a9e"
+
+PALETTE = ["#4fc3f7", "#00e5ff", "#1565c0", "#0288d1", "#26c6da",
+           "#80deea", "#b3e5fc", "#29b6f6", "#039be5", "#0277bd"]
+
+PLOTLY_TEMPLATE = dict(
+    layout=dict(
+        paper_bgcolor=COLOR_BG,
+        plot_bgcolor=COLOR_BG,
+        font=dict(family="Inter, sans-serif", color=COLOR_MUTED, size=11),
+        title=dict(font=dict(color=COLOR_TEXT, size=13)),
+        xaxis=dict(
+            gridcolor=COLOR_BORDER, linecolor=COLOR_BORDER,
+            tickfont=dict(color=COLOR_MUTED)
+        ),
+        yaxis=dict(
+            gridcolor=COLOR_BORDER, linecolor=COLOR_BORDER,
+            tickfont=dict(color=COLOR_MUTED)
+        ),
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(color=COLOR_MUTED)
+        ),
+        margin=dict(l=16, r=16, t=36, b=16),
+    )
+)
+
+# ─── DATOS ────────────────────────────────────────────────────────────────────
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv('proyecto-01-ventas/ventas_northwind.csv')
     df['OrderDate'] = pd.to_datetime(df['OrderDate'])
+    df['Año'] = df['OrderDate'].dt.year
+    df['Mes'] = df['OrderDate'].dt.to_period('M').astype(str)
     return df
 
 df = cargar_datos()
 
-# Título
-st.title("📊 Dashboard de Ventas — Northwind Traders")
-st.markdown("Análisis interactivo de ventas por categoría, país y período")
+# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## Filtros")
 
-# Sidebar filtros
-st.sidebar.header("🔍 Filtros")
-paises = st.sidebar.multiselect(
-    "País",
-    options=df['Country'].unique(),
-    default=df['Country'].unique()
-)
-categorias = st.sidebar.multiselect(
-    "Categoría",
-    options=df['CategoryName'].unique(),
-    default=df['CategoryName'].unique()
-)
+    años = sorted(df['Año'].unique())
+    año_sel = st.multiselect("Año", años, default=años)
 
-# Filtrar datos
-df_filtrado = df[
-    (df['Country'].isin(paises)) &
-    (df['CategoryName'].isin(categorias))
+    paises = sorted(df['Country'].dropna().unique())
+    pais_sel = st.multiselect("País", paises, default=paises)
+
+    cats = sorted(df['CategoryName'].unique())
+    cat_sel = st.multiselect("Categoría", cats, default=cats)
+
+    st.markdown("---")
+    st.markdown(f"""
+    <div style='color:{COLOR_MUTED}; font-size:0.72rem; line-height:1.8'>
+        <div style='color:{COLOR_PRIMARY}; font-weight:600; margin-bottom:6px'>📦 Dataset</div>
+        Northwind Traders (Microsoft)<br>
+        SQLite · jpwhite3<br>
+        <span style='color:{COLOR_PRIMARY}'>{len(df):,}</span> registros totales
+    </div>
+    """, unsafe_allow_html=True)
+
+# ─── FILTRAR ──────────────────────────────────────────────────────────────────
+df_f = df[
+    df['Año'].isin(año_sel) &
+    df['Country'].isin(pais_sel) &
+    df['CategoryName'].isin(cat_sel)
 ]
 
-# KPIs
-col1, col2, col3 = st.columns(3)
-col1.metric("💰 Total Ventas", f"${df_filtrado['TotalVenta'].sum():,.0f}")
-col2.metric("📦 Total Pedidos", f"{df_filtrado['OrderID'].nunique():,}")
-col3.metric("🌍 Países", f"{df_filtrado['Country'].nunique()}")
+# ─── HEADER ───────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class='main-header'>
+    <div style='margin-bottom:10px'>
+        <span class='badge'>SQL</span>
+        <span class='badge'>Python</span>
+        <span class='badge'>Streamlit</span>
+        <span class='badge'>Plotly</span>
+    </div>
+    <div class='main-title'>📊 Northwind Sales Analytics</div>
+    <div class='main-subtitle'>Dashboard de análisis de ventas · Julián Cabello · Data Analyst</div>
+</div>
+""", unsafe_allow_html=True)
 
-st.divider()
+# ─── KPIs ─────────────────────────────────────────────────────────────────────
+total_ventas = df_f['TotalVenta'].sum()
+total_pedidos = df_f['OrderID'].nunique()
+total_paises = df_f['Country'].nunique()
+ticket_prom = total_ventas / total_pedidos if total_pedidos > 0 else 0
+top_cat = df_f.groupby('CategoryName')['TotalVenta'].sum().idxmax() if not df_f.empty else "—"
 
-# Gráficos
-col1, col2 = st.columns(2)
+k1, k2, k3, k4 = st.columns(4)
 
-with col1:
-    st.subheader("Ventas por Categoría")
-    fig1 = px.bar(
-        df_filtrado.groupby('CategoryName')['TotalVenta'].sum().reset_index(),
-        x='CategoryName', y='TotalVenta',
-        color='TotalVenta', color_continuous_scale='blues'
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+with k1:
+    st.markdown(f"""
+    <div class='kpi-card' style='--accent:#4fc3f7'>
+        <div class='kpi-label'>💰 Total Ventas</div>
+        <div class='kpi-value'>${total_ventas/1e6:.1f}M</div>
+        <div class='kpi-sub'>USD acumulado</div>
+    </div>""", unsafe_allow_html=True)
 
-with col2:
-    st.subheader("Ventas por País")
-    fig2 = px.bar(
-        df_filtrado.groupby('Country')['TotalVenta'].sum().reset_index().nlargest(10, 'TotalVenta'),
-        x='TotalVenta', y='Country',
-        orientation='h', color='TotalVenta',
-        color_continuous_scale='blues'
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+with k2:
+    st.markdown(f"""
+    <div class='kpi-card' style='--accent:#00e5ff'>
+        <div class='kpi-label'>📦 Pedidos</div>
+        <div class='kpi-value'>{total_pedidos:,}</div>
+        <div class='kpi-sub'>órdenes únicas</div>
+    </div>""", unsafe_allow_html=True)
 
-# Ventas por tiempo
-st.subheader("Tendencia de Ventas")
-df_tiempo = df_filtrado.groupby('OrderDate')['TotalVenta'].sum().reset_index()
-fig3 = px.line(df_tiempo, x='OrderDate', y='TotalVenta')
-st.plotly_chart(fig3, use_container_width=True)
+with k3:
+    st.markdown(f"""
+    <div class='kpi-card' style='--accent:#26c6da'>
+        <div class='kpi-label'>🌍 Países</div>
+        <div class='kpi-value'>{total_paises}</div>
+        <div class='kpi-sub'>mercados activos</div>
+    </div>""", unsafe_allow_html=True)
+
+with k4:
+    st.markdown(f"""
+    <div class='kpi-card' style='--accent:#80deea'>
+        <div class='kpi-label'>🏆 Top Categoría</div>
+        <div class='kpi-value' style='font-size:1.2rem;margin-top:6px'>{top_cat}</div>
+        <div class='kpi-sub'>mayor volumen</div>
+    </div>""", unsafe_allow_html=True)
+
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+# ─── FILA 1: Categorías + Países ──────────────────────────────────────────────
+c1, c2 = st.columns([1.1, 0.9])
+
+with c1:
+    st.markdown("<div class='section-title'>Ventas por Categoría</div>", unsafe_allow_html=True)
+    df_cat = df_f.groupby('CategoryName')['TotalVenta'].sum().reset_index()
+    df_cat = df_cat.sort_values('TotalVenta', ascending=True)
+    fig1 = go.Figure(go.Bar(
+        x=df_cat['TotalVenta'],
+        y=df_cat['CategoryName'],
+        orientation='h',
+        marker=dict(
+            color=df_cat['TotalVenta'],
+            colorscale=[[0, '#0d2137'], [0.5, '#1565c0'], [1, '#4fc3f7']],
+            line=dict(width=0)
+        ),
+        text=[f"${v/1e6:.1f}M" for v in df_cat['TotalVenta']],
+        textposition='outside',
+        textfont=dict(color=COLOR_TEXT, size=10)
+    ))
+    fig1.update_layout(**PLOTLY_TEMPLATE['layout'], height=320)
+    fig1.update_xaxes(showgrid=False, showticklabels=False)
+    st.plotly_chart(fig1, use_container_width=True, config={'displayModeBar': False})
+
+with c2:
+    st.markdown("<div class='section-title'>Top 10 Países</div>", unsafe_allow_html=True)
+    df_pais = df_f.groupby('Country')['TotalVenta'].sum().reset_index()
+    df_pais = df_pais.nlargest(10, 'TotalVenta').sort_values('TotalVenta')
+    fig2 = go.Figure(go.Bar(
+        x=df_pais['TotalVenta'],
+        y=df_pais['Country'],
+        orientation='h',
+        marker=dict(
+            color=PALETTE[:len(df_pais)],
+            line=dict(width=0)
+        ),
+        text=[f"${v/1e6:.1f}M" for v in df_pais['TotalVenta']],
+        textposition='outside',
+        textfont=dict(color=COLOR_TEXT, size=10)
+    ))
+    fig2.update_layout(**PLOTLY_TEMPLATE['layout'], height=320)
+    fig2.update_xaxes(showgrid=False, showticklabels=False)
+    st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
+
+# ─── FILA 2: Tendencia ────────────────────────────────────────────────────────
+st.markdown("<div class='section-title'>Tendencia de Ventas Mensual</div>", unsafe_allow_html=True)
+
+df_tiempo = df_f.groupby('Mes')['TotalVenta'].sum().reset_index()
+df_tiempo = df_tiempo.sort_values('Mes')
+
+fig3 = go.Figure()
+fig3.add_trace(go.Scatter(
+    x=df_tiempo['Mes'],
+    y=df_tiempo['TotalVenta'],
+    mode='lines',
+    line=dict(color=COLOR_PRIMARY, width=2.5),
+    fill='tozeroy',
+    fillcolor='rgba(79,195,247,0.06)',
+    name='Ventas'
+))
+fig3.add_trace(go.Scatter(
+    x=df_tiempo['Mes'],
+    y=df_tiempo['TotalVenta'].rolling(3, min_periods=1).mean(),
+    mode='lines',
+    line=dict(color=COLOR_SECONDARY, width=1.5, dash='dot'),
+    name='Media móvil 3M'
+))
+fig3.update_layout(**PLOTLY_TEMPLATE['layout'], height=260)
+fig3.update_layout(legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
+st.plotly_chart(fig3, use_container_width=True, config={'displayModeBar': False})
+
+# ─── FILA 3: Producto + Distribución ──────────────────────────────────────────
+c3, c4 = st.columns([1.2, 0.8])
+
+with c3:
+    st.markdown("<div class='section-title'>Top 10 Productos</div>", unsafe_allow_html=True)
+    df_prod = df_f.groupby('ProductName')['TotalVenta'].sum().reset_index()
+    df_prod = df_prod.nlargest(10, 'TotalVenta').sort_values('TotalVenta')
+    fig4 = go.Figure(go.Bar(
+        x=df_prod['TotalVenta'],
+        y=df_prod['ProductName'],
+        orientation='h',
+        marker=dict(color=COLOR_ACCENT, line=dict(width=0)),
+        text=[f"${v/1e3:.0f}K" for v in df_prod['TotalVenta']],
+        textposition='outside',
+        textfont=dict(color=COLOR_TEXT, size=10)
+    ))
+    fig4.update_layout(**PLOTLY_TEMPLATE['layout'], height=320)
+    fig4.update_xaxes(showgrid=False, showticklabels=False)
+    st.plotly_chart(fig4, use_container_width=True, config={'displayModeBar': False})
+
+with c4:
+    st.markdown("<div class='section-title'>Mix de Categorías</div>", unsafe_allow_html=True)
+    df_pie = df_f.groupby('CategoryName')['TotalVenta'].sum().reset_index()
+    fig5 = go.Figure(go.Pie(
+        labels=df_pie['CategoryName'],
+        values=df_pie['TotalVenta'],
+        hole=0.55,
+        marker=dict(colors=PALETTE, line=dict(color=COLOR_BG, width=2)),
+        textinfo='percent',
+        textfont=dict(size=10, color=COLOR_TEXT),
+        showlegend=True
+    ))
+fig5.update_layout(**PLOTLY_TEMPLATE['layout'], height=320,
+    annotations=[dict(
+        text=f'<b>${total_ventas/1e6:.0f}M</b>',
+        x=0.5, y=0.5, font=dict(size=16, color=COLOR_TEXT),
+        showarrow=False
+    )]
+)
+fig5.update_layout(legend=dict(
+    font=dict(size=9, color=COLOR_MUTED),
+    bgcolor='rgba(0,0,0,0)'
+))
+st.plotly_chart(fig5, use_container_width=True, config={'displayModeBar': False})
+
+# ─── FOOTER ───────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown(f"""
+<div style='text-align:center; color:{COLOR_MUTED}; font-size:0.72rem; padding:8px 0'>
+    Julián Cabello · Data Analyst · 
+    <a href='https://github.com/Julian-cabello' style='color:{COLOR_PRIMARY}'>GitHub</a> · 
+    Dataset: Northwind Traders (Microsoft) · SQLite
+</div>
+""", unsafe_allow_html=True)
