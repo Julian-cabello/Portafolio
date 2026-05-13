@@ -162,7 +162,6 @@ PLOTLY_TEMPLATE = dict(
         paper_bgcolor=COLOR_BG,
         plot_bgcolor=COLOR_BG,
         font=dict(family="Inter, sans-serif", color=COLOR_MUTED, size=11),
-        # ← FIX 1: eliminado title=dict(...) que causaba "undefined" en todos los gráficos
         xaxis=dict(
             gridcolor=COLOR_BORDER, linecolor=COLOR_BORDER,
             tickfont=dict(color=COLOR_MUTED)
@@ -183,7 +182,6 @@ PLOTLY_TEMPLATE = dict(
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv('proyecto-01-ventas/ventas_northwind.csv')
-    # ← FIX 2: parseo robusto de fechas + cast explícito a int para evitar años corruptos
     df['OrderDate'] = pd.to_datetime(df['OrderDate'], format='mixed', dayfirst=False)
     df['Año'] = df['OrderDate'].dt.year.astype(int)
     df['Mes'] = df['OrderDate'].dt.to_period('M').astype(str)
@@ -322,6 +320,63 @@ with c2:
     fig2.update_xaxes(showgrid=False, showticklabels=False)
     st.plotly_chart(fig2, use_container_width=True, config={'displayModeBar': False})
 
+# ─── MAPA: Distribución Geográfica ────────────────────────────────────────────
+st.markdown("<div class='section-title'>Distribución Geográfica de Clientes</div>", unsafe_allow_html=True)
+
+df_mapa = df_f.groupby('Country').agg(
+    TotalVenta=('TotalVenta', 'sum'),
+    Pedidos=('OrderID', 'nunique')
+).reset_index()
+
+fig_mapa = px.choropleth(
+    df_mapa,
+    locations='Country',
+    locationmode='country names',
+    color='TotalVenta',
+    hover_name='Country',
+    hover_data={
+        'TotalVenta': ':$.0f',
+        'Pedidos': ':,',
+        'Country': False
+    },
+    color_continuous_scale=[
+        [0.0, '#0d2137'],
+        [0.3, '#1565c0'],
+        [0.7, '#0288d1'],
+        [1.0, '#4fc3f7']
+    ],
+    labels={'TotalVenta': 'Ventas (USD)'}
+)
+
+fig_mapa.update_layout(
+    **PLOTLY_TEMPLATE['layout'],
+    height=420,
+    geo=dict(
+        bgcolor=COLOR_BG,
+        landcolor='#111d35',
+        oceancolor=COLOR_BG,
+        showocean=True,
+        lakecolor=COLOR_BG,
+        showlakes=True,
+        coastlinecolor=COLOR_BORDER,
+        countrycolor=COLOR_BORDER,
+        showcoastlines=True,
+        showcountries=True,
+        showframe=False,
+        projection_type='natural earth'
+    ),
+    coloraxis_colorbar=dict(
+        title=dict(text='Ventas USD', font=dict(color=COLOR_MUTED, size=10)),
+        tickfont=dict(color=COLOR_MUTED, size=9),
+        bgcolor=COLOR_BG,
+        bordercolor=COLOR_BORDER,
+        thickness=12,
+        len=0.6
+    )
+)
+
+st.plotly_chart(fig_mapa, use_container_width=True, config={'displayModeBar': False})
+
 # ─── FILA 2: Tendencia ────────────────────────────────────────────────────────
 st.markdown("<div class='section-title'>Tendencia de Ventas Mensual</div>", unsafe_allow_html=True)
 
@@ -333,16 +388,16 @@ fig3.add_trace(go.Scatter(
     x=df_tiempo['Mes'],
     y=df_tiempo['TotalVenta'],
     mode='lines',
-    line=dict(color=COLOR_PRIMARY, width=1.5),   # ← FIX 3a: línea más fina para que el ruido moleste menos
+    line=dict(color=COLOR_PRIMARY, width=1.5),
     fill='tozeroy',
     fillcolor='rgba(79,195,247,0.06)',
     name='Ventas mensuales'
 ))
 fig3.add_trace(go.Scatter(
     x=df_tiempo['Mes'],
-    y=df_tiempo['TotalVenta'].rolling(6, min_periods=1).mean(),  # ← FIX 3b: ventana 3→6 meses
+    y=df_tiempo['TotalVenta'].rolling(6, min_periods=1).mean(),
     mode='lines',
-    line=dict(color=COLOR_SECONDARY, width=2.5, dash='dot'),    # ← FIX 3c: media móvil más gruesa y visible
+    line=dict(color=COLOR_SECONDARY, width=2.5, dash='dot'),
     name='Media móvil 6M'
 ))
 fig3.update_layout(**PLOTLY_TEMPLATE['layout'], height=260)
@@ -371,27 +426,39 @@ with c3:
 
 with c4:
     st.markdown("<div class='section-title'>Mix de Categorías</div>", unsafe_allow_html=True)
-    df_pie = df_f.groupby('CategoryName')['TotalVenta'].sum().reset_index()
+
+    todas_cats = sorted(df_f['CategoryName'].unique())
+    cats_donut = st.multiselect(
+        "Categorías visibles",
+        todas_cats,
+        default=todas_cats,
+        key="donut_cats",
+        label_visibility="collapsed"
+    )
+
+    df_pie = df_f[df_f['CategoryName'].isin(cats_donut)]
+    df_pie_agg = df_pie.groupby('CategoryName')['TotalVenta'].sum().reset_index()
+    total_donut = df_pie_agg['TotalVenta'].sum()  # ← recalcula según selección
+
     fig5 = go.Figure(go.Pie(
-        labels=df_pie['CategoryName'],
-        values=df_pie['TotalVenta'],
+        labels=df_pie_agg['CategoryName'],
+        values=df_pie_agg['TotalVenta'],
         hole=0.55,
         marker=dict(colors=PALETTE, line=dict(color=COLOR_BG, width=2)),
         textinfo='percent',
         textfont=dict(size=10, color=COLOR_TEXT),
         showlegend=True
     ))
-    fig5.update_layout(**PLOTLY_TEMPLATE['layout'], height=320,
+    fig5.update_layout(
+        **PLOTLY_TEMPLATE['layout'],
+        height=320,
         annotations=[dict(
-            text=f'<b>${total_ventas/1e6:.0f}M</b>',
+            text=f'<b>${total_donut/1e6:.1f}M</b>',  # ← total dinámico
             x=0.5, y=0.5, font=dict(size=16, color=COLOR_TEXT),
             showarrow=False
         )]
     )
-    fig5.update_layout(legend=dict(
-        font=dict(size=9, color=COLOR_MUTED),
-        bgcolor='rgba(0,0,0,0)'
-    ))
+    fig5.update_layout(legend=dict(font=dict(size=9, color=COLOR_MUTED), bgcolor='rgba(0,0,0,0)'))
     st.plotly_chart(fig5, use_container_width=True, config={'displayModeBar': False})
 
 # ─── FOOTER ───────────────────────────────────────────────────────────────────
