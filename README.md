@@ -35,5 +35,5 @@ del mundo profesional.
 
 ## 📬 Contacto
 - GitHub: [@Julian-cabello](https://github.com/Julian-cabello)
-- LinkedIn: www.linkedin.com/in/julian-cabello
+- LinkedIn: [Julián Cabello](https://linkedin.com/in/julian-cabello)
 - Correo: julian.cabello@hotmail.com
