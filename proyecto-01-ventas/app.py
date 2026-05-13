@@ -20,12 +20,10 @@ html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
 }
 
-/* Fondo principal */
 .stApp {
     background: #0a0f1e;
 }
 
-/* Sidebar */
 [data-testid="stSidebar"] {
     background: #0d1428;
     border-right: 1px solid #1e2d4a;
@@ -42,13 +40,11 @@ html, body, [class*="css"] {
     margin-bottom: 16px;
 }
 
-/* Multiselect tags */
 .stMultiSelect [data-baseweb="tag"] {
     background: #1565c0 !important;
     border-radius: 4px !important;
 }
 
-/* KPI Cards */
 .kpi-card {
     background: linear-gradient(135deg, #0d1428 0%, #111d35 100%);
     border: 1px solid #1e2d4a;
@@ -85,7 +81,6 @@ html, body, [class*="css"] {
     font-weight: 500;
 }
 
-/* Section titles */
 .section-title {
     color: #e8f4fd;
     font-size: 0.85rem;
@@ -104,7 +99,6 @@ html, body, [class*="css"] {
     background: linear-gradient(90deg, #1e2d4a, transparent);
 }
 
-/* Chart containers */
 .chart-container {
     background: #0d1428;
     border: 1px solid #1e2d4a;
@@ -112,7 +106,6 @@ html, body, [class*="css"] {
     padding: 20px;
 }
 
-/* Header */
 .main-header {
     padding: 8px 0 24px 0;
     border-bottom: 1px solid #1e2d4a;
@@ -144,10 +137,8 @@ html, body, [class*="css"] {
     margin-right: 6px;
 }
 
-/* Divider */
 hr { border-color: #1e2d4a !important; }
 
-/* Hide streamlit branding */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 </style>
@@ -171,7 +162,7 @@ PLOTLY_TEMPLATE = dict(
         paper_bgcolor=COLOR_BG,
         plot_bgcolor=COLOR_BG,
         font=dict(family="Inter, sans-serif", color=COLOR_MUTED, size=11),
-        title=dict(font=dict(color=COLOR_TEXT, size=13)),
+        # ← FIX 1: eliminado title=dict(...) que causaba "undefined" en todos los gráficos
         xaxis=dict(
             gridcolor=COLOR_BORDER, linecolor=COLOR_BORDER,
             tickfont=dict(color=COLOR_MUTED)
@@ -192,8 +183,9 @@ PLOTLY_TEMPLATE = dict(
 @st.cache_data
 def cargar_datos():
     df = pd.read_csv('proyecto-01-ventas/ventas_northwind.csv')
-    df['OrderDate'] = pd.to_datetime(df['OrderDate'])
-    df['Año'] = df['OrderDate'].dt.year
+    # ← FIX 2: parseo robusto de fechas + cast explícito a int para evitar años corruptos
+    df['OrderDate'] = pd.to_datetime(df['OrderDate'], format='mixed', dayfirst=False)
+    df['Año'] = df['OrderDate'].dt.year.astype(int)
     df['Mes'] = df['OrderDate'].dt.to_period('M').astype(str)
     return df
 
@@ -244,11 +236,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── KPIs ─────────────────────────────────────────────────────────────────────
-total_ventas = df_f['TotalVenta'].sum()
-total_pedidos = df_f['OrderID'].nunique()
-total_paises = df_f['Country'].nunique()
-ticket_prom = total_ventas / total_pedidos if total_pedidos > 0 else 0
-top_cat = df_f.groupby('CategoryName')['TotalVenta'].sum().idxmax() if not df_f.empty else "—"
+total_ventas   = df_f['TotalVenta'].sum()
+total_pedidos  = df_f['OrderID'].nunique()
+total_paises   = df_f['Country'].nunique()
+ticket_prom    = total_ventas / total_pedidos if total_pedidos > 0 else 0
+top_cat        = df_f.groupby('CategoryName')['TotalVenta'].sum().idxmax() if not df_f.empty else "—"
 
 k1, k2, k3, k4 = st.columns(4)
 
@@ -341,17 +333,17 @@ fig3.add_trace(go.Scatter(
     x=df_tiempo['Mes'],
     y=df_tiempo['TotalVenta'],
     mode='lines',
-    line=dict(color=COLOR_PRIMARY, width=2.5),
+    line=dict(color=COLOR_PRIMARY, width=1.5),   # ← FIX 3a: línea más fina para que el ruido moleste menos
     fill='tozeroy',
     fillcolor='rgba(79,195,247,0.06)',
-    name='Ventas'
+    name='Ventas mensuales'
 ))
 fig3.add_trace(go.Scatter(
     x=df_tiempo['Mes'],
-    y=df_tiempo['TotalVenta'].rolling(3, min_periods=1).mean(),
+    y=df_tiempo['TotalVenta'].rolling(6, min_periods=1).mean(),  # ← FIX 3b: ventana 3→6 meses
     mode='lines',
-    line=dict(color=COLOR_SECONDARY, width=1.5, dash='dot'),
-    name='Media móvil 3M'
+    line=dict(color=COLOR_SECONDARY, width=2.5, dash='dot'),    # ← FIX 3c: media móvil más gruesa y visible
+    name='Media móvil 6M'
 ))
 fig3.update_layout(**PLOTLY_TEMPLATE['layout'], height=260)
 fig3.update_layout(legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1))
@@ -389,18 +381,18 @@ with c4:
         textfont=dict(size=10, color=COLOR_TEXT),
         showlegend=True
     ))
-fig5.update_layout(**PLOTLY_TEMPLATE['layout'], height=320,
-    annotations=[dict(
-        text=f'<b>${total_ventas/1e6:.0f}M</b>',
-        x=0.5, y=0.5, font=dict(size=16, color=COLOR_TEXT),
-        showarrow=False
-    )]
-)
-fig5.update_layout(legend=dict(
-    font=dict(size=9, color=COLOR_MUTED),
-    bgcolor='rgba(0,0,0,0)'
-))
-st.plotly_chart(fig5, use_container_width=True, config={'displayModeBar': False})
+    fig5.update_layout(**PLOTLY_TEMPLATE['layout'], height=320,
+        annotations=[dict(
+            text=f'<b>${total_ventas/1e6:.0f}M</b>',
+            x=0.5, y=0.5, font=dict(size=16, color=COLOR_TEXT),
+            showarrow=False
+        )]
+    )
+    fig5.update_layout(legend=dict(
+        font=dict(size=9, color=COLOR_MUTED),
+        bgcolor='rgba(0,0,0,0)'
+    ))
+    st.plotly_chart(fig5, use_container_width=True, config={'displayModeBar': False})
 
 # ─── FOOTER ───────────────────────────────────────────────────────────────────
 st.markdown("---")
